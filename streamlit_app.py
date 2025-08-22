@@ -22,7 +22,7 @@ logger = get_logger()
 # --- BARRA LATERAL (UI de Configuración) ---
 with st.sidebar:
     st.title("🚚 Rout-2: Panel de Control")
-    st.info("App corregida y robustecida para Streamlit Cloud.")
+    st.info("App corregida y robustecida para Streamlit.")
 
     # 1. Carga de Archivo
     with st.expander("1. Cargar Archivo de Paradas", expanded=True):
@@ -41,7 +41,7 @@ with st.sidebar:
                 logger.info("Archivo procesado y validado correctamente.")
             except Exception as e:
                 st.error(f"Error al procesar el archivo: {e}")
-                logger.error(f"Fallo en safe_read_table: {e}", exc_info=False) # No mostrar traceback completo en UI
+                logger.error(f"Fallo en safe_read_table: {e}", exc_info=False)
                 st.session_state.paradas_df = None
 
     # 2. Configuración de Flota
