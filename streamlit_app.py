@@ -1,88 +1,75 @@
 import streamlit as st
 import pandas as pd
 import json
+
+# Importar módulos refactorizados
 from utils import init_session_state, get_logger, display_logs
 from io_parser import safe_read_table
 from solver import run_optimization
 from visualization import render_map, render_metrics_and_tables
 
-# --- Configuración de la Página y Estilos ---
+# Configuración de la página
 st.set_page_config(
-    page_title="Rout-2 | Optimizador de Rutas",
-    page_icon="🚚",
+    page_title="Rout-2 | Optimización de Rutas (Corregido)",
+    page_icon="✅",
     layout="wide"
 )
 
-# Inyectar CSS para un look más moderno
-st.markdown("""
-<style>
-    /* Botón principal */
-    .stButton > button {
-        border-radius: 20px;
-        border: 1px solid #4B8BBE;
-        background-color: #4B8BBE;
-        color: white;
-        transition: all 0.2s ease-in-out;
-    }
-    .stButton > button:hover {
-        border-color: #3D6F9A;
-        background-color: #3D6F9A;
-    }
-    /* Estilo de los contenedores de métricas */
-    div[data-testid="metric-container"] {
-        background-color: #F0F2F6;
-        border: 1px solid #F0F2F6;
-        padding: 10px;
-        border-radius: 10px;
-    }
-</style>
-""", unsafe_allow_html=True)
-
+# Inicializar estado de la sesión y logger
 init_session_state()
 logger = get_logger()
 
-# --- Barra Lateral ---
+# --- BARRA LATERAL (UI de Configuración) ---
 with st.sidebar:
     st.title("🚚 Rout-2: Panel de Control")
-    st.info("Configura y ejecuta la optimización de rutas.")
+    st.info("App corregida y robustecida para Streamlit.")
 
-    with st.expander("📂 1. Cargar Archivo de Paradas", expanded=True):
+    # 1. Carga de Archivo
+    with st.expander("1. Cargar Archivo de Paradas", expanded=True):
         uploaded_file = st.file_uploader(
             "Sube un archivo (.csv, .xlsx, .ods)",
             type=['csv', 'xlsx', 'ods'],
-            help="Columnas requeridas: id/nombre, lat, lon, demanda/pasajeros."
+            help="Columnas requeridas: id, lat, lon, demanda, is_depot (True/False)."
         )
         if uploaded_file:
             try:
+                logger.info(f"Procesando archivo subido: {uploaded_file.name}")
                 paradas_df = safe_read_table(uploaded_file)
                 st.session_state.paradas_df = paradas_df
-                st.session_state.resultados = None
-                st.success(f"Archivo '{uploaded_file.name}' cargado.")
+                st.session_state.resultados = None # Limpiar resultados anteriores
+                st.success(f"Archivo '{uploaded_file.name}' cargado con {len(paradas_df)} paradas.")
+                logger.info("Archivo procesado y validado correctamente.")
             except Exception as e:
-                st.error(f"Error al procesar: {e}")
+                st.error(f"Error al procesar el archivo: {e}")
+                logger.error(f"Fallo en safe_read_table: {e}", exc_info=False)
                 st.session_state.paradas_df = None
 
-    with st.expander("🚛 2. Configurar Flota", expanded=True):
+    # 2. Configuración de Flota
+    with st.expander("2. Configurar Flota", expanded=True):
         num_vehiculos = st.slider("Número de Vehículos", 1, 20, 3, key="num_vehiculos")
         capacidad_general = st.number_input("Capacidad por Vehículo", min_value=1, value=50, key="cap_vehiculos")
         
-        vehiculos_list = [{'id': f'Vehículo {i+1}', 'capacidad': capacidad_general} for i in range(num_vehiculos)]
+        vehiculos_list = [{'id': f'vehiculo_{i+1}', 'capacidad': capacidad_general} for i in range(num_vehiculos)]
         st.session_state.vehiculos_df = pd.DataFrame(vehiculos_list)
+        st.write(f"Flota: {num_vehiculos} vehículos con capacidad {capacidad_general} c/u.")
 
-    with st.expander("⚙️ 3. Parámetros Avanzados", expanded=False):
+    # 3. Parámetros de Simulación y Solver
+    with st.expander("3. Parámetros Avanzados", expanded=False):
         st.number_input("Costo por KM", value=0.5, format="%.2f", key="costo_km")
         st.number_input("Velocidad Promedio (km/h)", value=40.0, format="%.1f", key="velocidad_kmh")
         st.number_input("Semilla Aleatoria (seed)", value=42, key="random_seed")
         st.selectbox(
             "Modo del Solver",
             options=["Híbrido (Recomendado)", "Solo Heurística Rápida"],
-            key="solver_mode"
+            key="solver_mode",
+            help="Híbrido intenta el solver avanzado y usa la heurística como fallback."
         )
 
+    # 4. Botón de Ejecución
     st.markdown("---")
-    if st.button("🚀 Optimizar Rutas", use_container_width=True):
+    if st.button("🚀 Ejecutar Optimización", type="primary", use_container_width=True):
         if st.session_state.paradas_df is not None and not st.session_state.paradas_df.empty:
-            with st.spinner("Calculando las mejores rutas..."):
+            with st.spinner("Optimizando rutas... Esto puede tardar unos segundos."):
                 try:
                     force_fallback = (st.session_state.solver_mode == "Solo Heurística Rápida")
                     resultados = run_optimization(
@@ -96,12 +83,13 @@ with st.sidebar:
                     st.session_state.resultados = resultados
                     st.success("¡Optimización completada!")
                 except Exception as e:
-                    st.error(f"Error en la optimización: {e}")
+                    st.error(f"Ocurrió un error crítico durante la optimización: {e}")
+                    logger.error(f"Fallo en run_optimization: {e}", exc_info=False)
                     st.session_state.resultados = None
         else:
-            st.warning("Por favor, carga un archivo de paradas primero.")
+            st.warning("Por favor, carga los datos de las paradas antes de optimizar.")
 
-# --- Pantalla Principal ---
+# --- PANTALLA PRINCIPAL ---
 st.header("Visualización de Rutas y Resultados")
 
 if st.session_state.resultados:
@@ -111,6 +99,7 @@ else:
     if st.session_state.paradas_df is not None:
         render_map(st.session_state.paradas_df, None)
     else:
-        st.info("Bienvenido. Comienza cargando un archivo desde el panel de la izquierda.")
+        st.info("Bienvenido. Comienza cargando un archivo de paradas desde el panel de la izquierda.")
 
+# Panel de Logs al final de la página
 display_logs()
