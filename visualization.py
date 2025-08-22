@@ -27,7 +27,7 @@ def render_map(paradas_df, resultados):
 
 def render_metrics_and_tables(resultados, paradas_df):
     """Muestra las pestañas con el mapa, métricas, detalles y opciones de descarga."""
-    tab1, tab2, tab3, tab4 = st_tabs(["🗺️ Mapa", "📊 Resumen", "📋 Detalle", "📥 Descargar"])
+    tab1, tab2, tab3, tab4 = st.tabs(["🗺️ Mapa", "📊 Resumen", "📋 Detalle", "📥 Descargar"])
 
     with tab1:
         st.subheader("Mapa Interactivo de Rutas")
