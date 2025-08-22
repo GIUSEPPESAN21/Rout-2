@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import math
+import random
 from python_tsp.heuristics import solve_tsp_simulated_annealing
 from utils import get_logger
 
@@ -44,11 +45,19 @@ def solve_tsp_with_fallback(dist_matrix, random_seed):
     num_nodos = len(dist_matrix)
     if num_nodos <= 2:
         return list(range(num_nodos)), np.sum(dist_matrix) if num_nodos == 2 else 0
+    
+    # Establecer la semilla para reproducibilidad antes de llamar al solver
+    np.random.seed(random_seed)
+    random.seed(random_seed)
+
     try:
         logger.info(f"Intentando solver avanzado para {num_nodos} nodos...")
         if np.isnan(dist_matrix).any() or np.isinf(dist_matrix).any():
             raise ValueError("Matriz de distancia contiene NaN/Inf.")
-        permutation, distance = solve_tsp_simulated_annealing(dist_matrix, seed=random_seed)
+        
+        # La función no acepta 'seed', se controla con np.random.seed() antes.
+        permutation, distance = solve_tsp_simulated_annealing(dist_matrix)
+        
         logger.info("Solver avanzado completado con éxito.")
         return permutation, distance
     except (StopIteration, ValueError) as e:
