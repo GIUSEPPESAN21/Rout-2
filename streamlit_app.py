@@ -15,7 +15,7 @@ st.set_page_config(
 # Inyectar CSS para un look más pulido
 st.markdown("""
 <style>
-    /* Ocultar el menú de Streamlit y el footer */
+    /* Ocultar el menú de Streamlit y el footer para un look de app real */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     /* Estilo del header */
@@ -157,12 +157,13 @@ with col1:
     # Pestaña "Acerca de"
     with tab_about:
         st.markdown("##### Autor")
-        st.write("Este software fue desarrollado por **GIUSEPPESAN21**.")
+        st.write("**Joseph Javier Sánchez Acuña**")
+        st.write("_Ingeniero Industrial, Experto en Inteligencia Artificial y Desarrollo de Software._")
         st.markdown("---")
         st.markdown("##### Contacto")
-        st.write("📧 Para consultas o soporte, por favor contactar a:")
-        st.code("joseph.sanchez@uniminuto.edu.co")
-        st.write("🔗 [Visita mi Perfil de GitHub](https://github.com/GIUSEPPESAN21)")
+        st.write("🔗 [Perfil de LinkedIn](https://www.linkedin.com/in/joseph-javier-sánchez-acuña-150410275)")
+        st.write("📂 [Repositorio en GitHub](https://github.com/GIUSEPPESAN21)")
+        st.write("📧 joseph.sanchez@uniminuto.edu.co")
 
 
 # --- Columna 2: Mapa (Siempre Visible) ---
