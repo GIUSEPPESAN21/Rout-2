@@ -34,10 +34,10 @@ def generate_html_report(resumen_df, paradas_df):
     <html>
     <head>
         <style>
-            body { font-family: sans-serif; }
+            body { font-family: sans-serif; margin: 20px; }
             h1, h2, h3 { color: #1E3A8A; }
-            table { border-collapse: collapse; width: 100%; margin-bottom: 2rem; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            table { border-collapse: collapse; width: 100%; margin-bottom: 2rem; font-size: 12px; }
+            th, td { border: 1px solid #ddd; padding: 6px; text-align: left; }
             th { background-color: #f2f2f2; }
         </style>
     </head>
@@ -45,8 +45,6 @@ def generate_html_report(resumen_df, paradas_df):
         <h1>Informe de Rutas - Rout Now</h1>
     """
     
-    # --- INICIO DE LA CORRECCIÓN ---
-    # Crear una copia con los nombres de columna correctos solo para el informe
     df_reporte = resumen_df.copy()
     df_reporte.rename(columns={
         'vehiculo_id': 'Vehículo',
@@ -56,17 +54,14 @@ def generate_html_report(resumen_df, paradas_df):
         'costo_estimado': 'Costo ($)'
     }, inplace=True)
 
-    # Resumen general
     html += "<h2>Resumen General de la Operación</h2>"
-    html += df_reporte[['Vehículo', 'Demanda Total', '% Capacidad', 'Distancia (km)', 'Costo ($)']].to_html(index=False)
+    html += df_reporte[['Vehículo', 'Demanda Total', '% Capacidad', 'Distancia (km)', 'Costo ($)']].to_html(index=False, justify='center')
     
-    # Detalle por ruta (usando el DataFrame original que tiene toda la info)
     html += "<h2>Detalle por Ruta</h2>"
     for _, ruta in resumen_df.iterrows():
         html += f"<h3>{ruta['vehiculo_id']}</h3>"
         ruta_df = pd.DataFrame([paradas_dict[pid] for pid in ruta['secuencia_paradas_ids']])
-        html += ruta_df[['id', 'lat', 'lon', 'demanda']].to_html(index=False)
-    # --- FIN DE LA CORRECCIÓN ---
+        html += ruta_df[['id', 'lat', 'lon', 'demanda']].to_html(index=False, justify='center')
         
     html += "</body></html>"
     return html
@@ -136,19 +131,25 @@ def render_results_section(resultados, paradas_df):
         html_report = generate_html_report(resumen_df, paradas_df)
         components.html(f"""
             <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-            <div id="reporte_html" style="display:none;">{html_report}</div>
+            
+            <!-- Contenido del informe, oculto pero accesible para el script -->
+            <div id="reporte_html" style="position: absolute; left: -9999px; top: -9999px; width: 100%;">
+                {html_report}
+            </div>
+            
             <button id="descargar_pdf" onclick="descargarPDF()">📄 Descargar Informe (PDF)</button>
+            
             <script>
                 function descargarPDF() {{
                     const elemento = document.getElementById('reporte_html');
                     const opt = {{
-                        margin:       1,
+                        margin:       0.5,
                         filename:     'informe_de_rutas.pdf',
                         image:        {{ type: 'jpeg', quality: 0.98 }},
                         html2canvas:  {{ scale: 2 }},
                         jsPDF:        {{ unit: 'in', format: 'letter', orientation: 'portrait' }}
                     }};
-                    html2pdf().set(opt).from(elemento).save();
+                    html2pdf().from(elemento).set(opt).save();
                 }}
             </script>
             <style>
