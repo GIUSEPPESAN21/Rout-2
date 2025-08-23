@@ -120,22 +120,21 @@ with col1:
             st.markdown("##### 3. Parámetros de Simulación")
             col_costo, col_vel = st.columns(2)
             with col_costo:
-                st.number_input("Costo por KM", value=0.5, format="%.2f", key="costo_km")
+                st.number_input("Costo por KM", value=15000.0, format="%.2f", key="costo_km")
             with col_vel:
-                st.number_input("Velocidad (km/h)", value=40.0, format="%.1f", key="velocidad_kmh")
+                st.number_input("Velocidad (km/h)", value=60.0, format="%.1f", key="velocidad_kmh")
         
         st.markdown("---")
         if st.button("🚀 Optimizar Rutas", use_container_width=True, type="primary"):
             if st.session_state.paradas_df is not None and not st.session_state.paradas_df.empty:
                 with st.spinner("Calculando las mejores rutas..."):
                     try:
-                        # La semilla aleatoria ahora es fija para consistencia, pero oculta al usuario
                         resultados = run_optimization(
                             paradas_df=st.session_state.paradas_df,
                             vehiculos_df=st.session_state.vehiculos_df,
                             costo_km=st.session_state.costo_km,
                             velocidad_kmh=st.session_state.velocidad_kmh,
-                            random_seed=42, # Semilla fija
+                            random_seed=42,
                             force_fallback=False
                         )
                         st.session_state.resultados = resultados
@@ -154,7 +153,7 @@ with col1:
         else:
             st.info("Aún no se han generado resultados. Ejecuta la optimización en la pestaña 'Configuración'.")
 
-    # Pestaña "Acerca de"
+    # Pestaña "Acerca de" con la información actualizada
     with tab_about:
         st.markdown("##### Autor")
         st.write("**Joseph Javier Sánchez Acuña**")
@@ -172,5 +171,4 @@ with col2:
     if st.session_state.paradas_df is not None:
         render_map(st.session_state.paradas_df, st.session_state.resultados)
     else:
-        # Mapa de bienvenida si no hay datos
         st.image("https://i.imgur.com/3o5s48j.png", caption="Carga un archivo para visualizar las paradas en el mapa.")
