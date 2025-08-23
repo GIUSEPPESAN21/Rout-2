@@ -3,26 +3,18 @@ import pandas as pd
 import folium
 from streamlit_folium import st_folium
 from io import BytesIO
-from openpyxl import Workbook
-from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 import streamlit.components.v1 as components
+import json
 
 def to_excel(df_dict):
-    """Exporta un diccionario de DataFrames a un archivo Excel en memoria con estilos."""
+    """
+    Exporta un diccionario de DataFrames a un archivo Excel en memoria.
+    Se han eliminado los estilos complejos para maximizar la compatibilidad.
+    """
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         for sheet_name, df in df_dict.items():
             df.to_excel(writer, sheet_name=sheet_name, index=False)
-        
-        workbook = writer.book
-        header_font = Font(bold=True, color="FFFFFF")
-        header_fill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid")
-        
-        for sheet_name in workbook.sheetnames:
-            worksheet = workbook[sheet_name]
-            for cell in worksheet[1]:
-                cell.font = header_font
-                cell.fill = header_fill
     output.seek(0)
     return output
 
@@ -129,19 +121,18 @@ def render_results_section(resultados, paradas_df):
             
     with col_pdf:
         html_report = generate_html_report(resumen_df, paradas_df)
+        # Escapar el HTML para pasarlo de forma segura a JavaScript
+        html_escaped = json.dumps(html_report)
+        
         components.html(f"""
             <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-            
-            <!-- Contenido del informe, oculto pero accesible para el script -->
-            <div id="reporte_html" style="position: absolute; left: -9999px; top: -9999px; width: 100%;">
-                {html_report}
-            </div>
-            
             <button id="descargar_pdf" onclick="descargarPDF()">📄 Descargar Informe (PDF)</button>
             
             <script>
+                // El contenido HTML del informe ahora está en una variable de JavaScript
+                const informeHtml = {html_escaped};
+
                 function descargarPDF() {{
-                    const elemento = document.getElementById('reporte_html');
                     const opt = {{
                         margin:       0.5,
                         filename:     'informe_de_rutas.pdf',
@@ -149,7 +140,8 @@ def render_results_section(resultados, paradas_df):
                         html2canvas:  {{ scale: 2 }},
                         jsPDF:        {{ unit: 'in', format: 'letter', orientation: 'portrait' }}
                     }};
-                    html2pdf().from(elemento).set(opt).save();
+                    // Generar el PDF directamente desde la variable, no desde un div oculto
+                    html2pdf().from(informeHtml).set(opt).save();
                 }}
             </script>
             <style>
