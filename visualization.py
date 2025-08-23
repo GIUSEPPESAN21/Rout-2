@@ -45,16 +45,28 @@ def generate_html_report(resumen_df, paradas_df):
         <h1>Informe de Rutas - Rout Now</h1>
     """
     
+    # --- INICIO DE LA CORRECCIÓN ---
+    # Crear una copia con los nombres de columna correctos solo para el informe
+    df_reporte = resumen_df.copy()
+    df_reporte.rename(columns={
+        'vehiculo_id': 'Vehículo',
+        'total_demanda': 'Demanda Total',
+        'capacidad_utilizada_pct': '% Capacidad',
+        'distancia_km': 'Distancia (km)',
+        'costo_estimado': 'Costo ($)'
+    }, inplace=True)
+
     # Resumen general
     html += "<h2>Resumen General de la Operación</h2>"
-    html += resumen_df[['Vehículo', 'Demanda Total', '% Capacidad', 'Distancia (km)', 'Costo ($)']].to_html(index=False)
+    html += df_reporte[['Vehículo', 'Demanda Total', '% Capacidad', 'Distancia (km)', 'Costo ($)']].to_html(index=False)
     
-    # Detalle por ruta
+    # Detalle por ruta (usando el DataFrame original que tiene toda la info)
     html += "<h2>Detalle por Ruta</h2>"
     for _, ruta in resumen_df.iterrows():
-        html += f"<h3>{ruta['Vehículo']}</h3>"
+        html += f"<h3>{ruta['vehiculo_id']}</h3>"
         ruta_df = pd.DataFrame([paradas_dict[pid] for pid in ruta['secuencia_paradas_ids']])
         html += ruta_df[['id', 'lat', 'lon', 'demanda']].to_html(index=False)
+    # --- FIN DE LA CORRECCIÓN ---
         
     html += "</body></html>"
     return html
@@ -105,7 +117,6 @@ def render_results_section(resultados, paradas_df):
     st.markdown("---")
     st.subheader("Descargar Informes")
     
-    # --- Preparación de datos para descarga ---
     paradas_dict = {p['id']: p for _, p in paradas_df.iterrows()}
     informe_sheets = {"Resumen": df_display}
     for _, ruta in resumen_df.iterrows():
@@ -114,7 +125,6 @@ def render_results_section(resultados, paradas_df):
         ruta_df = pd.DataFrame([paradas_dict[pid] for pid in ruta['secuencia_paradas_ids']])
         informe_sheets[sheet_name] = ruta_df[['id', 'lat', 'lon', 'demanda']]
 
-    # --- Botones de Descarga ---
     col_excel, col_pdf = st.columns(2)
     
     with col_excel:
