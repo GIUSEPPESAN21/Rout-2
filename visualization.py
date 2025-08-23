@@ -31,6 +31,11 @@ def generate_html_report(resumen_df, paradas_df):
             table { border-collapse: collapse; width: 100%; margin-bottom: 2rem; font-size: 12px; }
             th, td { border: 1px solid #ddd; padding: 6px; text-align: left; }
             th { background-color: #f2f2f2; }
+            /* --- INICIO DE LA CORRECCIÓN --- */
+            /* Pistas para el generador de PDF */
+            .page-break { page-break-before: always; } /* Empieza en una nueva página */
+            .no-break { page-break-inside: avoid; } /* Intenta no cortar este elemento */
+            /* --- FIN DE LA CORRECCIÓN --- */
         </style>
     </head>
     <body>
@@ -46,14 +51,18 @@ def generate_html_report(resumen_df, paradas_df):
         'costo_estimado': 'Costo ($)'
     }, inplace=True)
 
+    html += "<div class='no-break'>"
     html += "<h2>Resumen General de la Operación</h2>"
     html += df_reporte[['Vehículo', 'Demanda Total', '% Capacidad', 'Distancia (km)', 'Costo ($)']].to_html(index=False, justify='center')
+    html += "</div>"
     
-    html += "<h2>Detalle por Ruta</h2>"
+    html += "<h2 class='page-break'>Detalle por Ruta</h2>"
     for _, ruta in resumen_df.iterrows():
+        html += f"<div class='no-break'>"
         html += f"<h3>{ruta['vehiculo_id']}</h3>"
         ruta_df = pd.DataFrame([paradas_dict[pid] for pid in ruta['secuencia_paradas_ids']])
         html += ruta_df[['id', 'lat', 'lon', 'demanda']].to_html(index=False, justify='center')
+        html += "</div>"
         
     html += "</body></html>"
     return html
@@ -121,7 +130,6 @@ def render_results_section(resultados, paradas_df):
             
     with col_pdf:
         html_report = generate_html_report(resumen_df, paradas_df)
-        # Escapar el HTML para pasarlo de forma segura a JavaScript
         html_escaped = json.dumps(html_report)
         
         components.html(f"""
@@ -129,7 +137,6 @@ def render_results_section(resultados, paradas_df):
             <button id="descargar_pdf" onclick="descargarPDF()">📄 Descargar Informe (PDF)</button>
             
             <script>
-                // El contenido HTML del informe ahora está en una variable de JavaScript
                 const informeHtml = {html_escaped};
 
                 function descargarPDF() {{
@@ -140,7 +147,6 @@ def render_results_section(resultados, paradas_df):
                         html2canvas:  {{ scale: 2 }},
                         jsPDF:        {{ unit: 'in', format: 'letter', orientation: 'portrait' }}
                     }};
-                    // Generar el PDF directamente desde la variable, no desde un div oculto
                     html2pdf().from(informeHtml).set(opt).save();
                 }}
             </script>
