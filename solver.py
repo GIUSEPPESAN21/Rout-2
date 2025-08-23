@@ -46,7 +46,6 @@ def solve_tsp_with_fallback(dist_matrix, random_seed):
     if num_nodos <= 2:
         return list(range(num_nodos)), np.sum(dist_matrix) if num_nodos == 2 else 0
     
-    # Establecer la semilla para reproducibilidad antes de llamar al solver
     np.random.seed(random_seed)
     random.seed(random_seed)
 
@@ -55,7 +54,6 @@ def solve_tsp_with_fallback(dist_matrix, random_seed):
         if np.isnan(dist_matrix).any() or np.isinf(dist_matrix).any():
             raise ValueError("Matriz de distancia contiene NaN/Inf.")
         
-        # La función no acepta 'seed', se controla con np.random.seed() antes.
         permutation, distance = solve_tsp_simulated_annealing(dist_matrix)
         
         logger.info("Solver avanzado completado con éxito.")
@@ -111,4 +109,6 @@ def run_optimization(paradas_df, vehiculos_df, costo_km, velocidad_kmh, random_s
             "secuencia_paradas_ids": [pid for pid in secuencia_final_ids if pid != depot['id']]
         })
     logger.info(f"Optimización finalizada. Se generaron {len(resultados)} rutas.")
-    return sorted(resultados, key=lambda x: int(str(x['vehiculo_id']).split('_')[-1]))
+    # --- LÍNEA CORREGIDA ---
+    # Se cambia el split de '_' a ' ' para que coincida con el formato "Vehículo 1"
+    return sorted(resultados, key=lambda x: int(x['vehiculo_id'].split(' ')[-1]))
