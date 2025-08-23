@@ -1,105 +1,175 @@
 import streamlit as st
 import pandas as pd
-import json
-
-# Importar módulos refactorizados
-from utils import init_session_state, get_logger, display_logs
+from utils import init_session_state, get_logger
 from io_parser import safe_read_table
 from solver import run_optimization
-from visualization import render_map, render_metrics_and_tables
+from visualization import render_map, render_results_section
 
-# Configuración de la página
+# --- Configuración de la Página y Estilos ---
 st.set_page_config(
-    page_title="Rout-2 | Optimización de Rutas (Corregido)",
-    page_icon="✅",
+    page_title="Rout Now | Metaheuristic Solution",
+    page_icon="🚚",
     layout="wide"
 )
 
-# Inicializar estado de la sesión y logger
+# Inyectar CSS para un look más pulido
+st.markdown("""
+<style>
+    /* Ocultar el menú de Streamlit y el footer */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    /* Estilo del header */
+    .header {
+        background-color: #f0f2f6;
+        padding: 1rem;
+        border-radius: 10px;
+        margin-bottom: 2rem;
+        display: flex;
+        align-items: center;
+    }
+    .header h1 {
+        font-size: 2.5rem;
+        color: #1E3A8A; /* Azul oscuro */
+        margin: 0;
+        font-weight: 600;
+    }
+    .header p {
+        font-size: 1.1rem;
+        color: #555;
+        margin: 0;
+        margin-left: 1rem;
+    }
+    .header .icon {
+        font-size: 2.5rem;
+        margin-right: 1rem;
+    }
+    /* Estilo de las pestañas */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 24px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        white-space: pre-wrap;
+        background-color: #F0F2F6;
+        border-radius: 8px 8px 0 0;
+        gap: 1px;
+        padding-top: 10px;
+        padding-bottom: 10px;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #FFFFFF;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Inicializar estado y logger
 init_session_state()
 logger = get_logger()
 
-# --- BARRA LATERAL (UI de Configuración) ---
-with st.sidebar:
-    st.title("🚚 Rout-2: Panel de Control")
-    st.info("App corregida y robustecida para Streamlit.")
+# --- Header ---
+st.markdown(
+    """
+    <div class="header">
+        <span class="icon">🚚</span>
+        <div>
+            <h1>Rout Now</h1>
+            <p>Metaheuristic Solution</p>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
-    # 1. Carga de Archivo
-    with st.expander("1. Cargar Archivo de Paradas", expanded=True):
-        uploaded_file = st.file_uploader(
-            "Sube un archivo (.csv, .xlsx, .ods)",
-            type=['csv', 'xlsx', 'ods'],
-            help="Columnas requeridas: id, lat, lon, demanda, is_depot (True/False)."
-        )
-        if uploaded_file:
-            try:
-                logger.info(f"Procesando archivo subido: {uploaded_file.name}")
-                paradas_df = safe_read_table(uploaded_file)
-                st.session_state.paradas_df = paradas_df
-                st.session_state.resultados = None # Limpiar resultados anteriores
-                st.success(f"Archivo '{uploaded_file.name}' cargado con {len(paradas_df)} paradas.")
-                logger.info("Archivo procesado y validado correctamente.")
-            except Exception as e:
-                st.error(f"Error al procesar el archivo: {e}")
-                logger.error(f"Fallo en safe_read_table: {e}", exc_info=False)
-                st.session_state.paradas_df = None
+# --- Layout Principal de Dos Columnas ---
+col1, col2 = st.columns([1, 2]) # Columna de control 33%, columna de mapa 67%
 
-    # 2. Configuración de Flota
-    with st.expander("2. Configurar Flota", expanded=True):
-        num_vehiculos = st.slider("Número de Vehículos", 1, 20, 3, key="num_vehiculos")
-        capacidad_general = st.number_input("Capacidad por Vehículo", min_value=1, value=50, key="cap_vehiculos")
-        
-        vehiculos_list = [{'id': f'vehiculo_{i+1}', 'capacidad': capacidad_general} for i in range(num_vehiculos)]
-        st.session_state.vehiculos_df = pd.DataFrame(vehiculos_list)
-        st.write(f"Flota: {num_vehiculos} vehículos con capacidad {capacidad_general} c/u.")
+# --- Columna 1: Panel de Control con Pestañas ---
+with col1:
+    st.subheader("Panel de Control")
+    
+    tab_config, tab_results, tab_about = st.tabs(["⚙️ Configuración", "📊 Resultados", "👤 Acerca de"])
 
-    # 3. Parámetros de Simulación y Solver
-    with st.expander("3. Parámetros Avanzados", expanded=False):
-        st.number_input("Costo por KM", value=0.5, format="%.2f", key="costo_km")
-        st.number_input("Velocidad Promedio (km/h)", value=40.0, format="%.1f", key="velocidad_kmh")
-        st.number_input("Semilla Aleatoria (seed)", value=42, key="random_seed")
-        st.selectbox(
-            "Modo del Solver",
-            options=["Híbrido (Recomendado)", "Solo Heurística Rápida"],
-            key="solver_mode",
-            help="Híbrido intenta el solver avanzado y usa la heurística como fallback."
-        )
-
-    # 4. Botón de Ejecución
-    st.markdown("---")
-    if st.button("🚀 Ejecutar Optimización", type="primary", use_container_width=True):
-        if st.session_state.paradas_df is not None and not st.session_state.paradas_df.empty:
-            with st.spinner("Optimizando rutas... Esto puede tardar unos segundos."):
+    # Pestaña de Configuración
+    with tab_config:
+        with st.container(border=True):
+            st.markdown("##### 1. Cargar Datos de Paradas")
+            uploaded_file = st.file_uploader(
+                "Sube un archivo (.csv, .xlsx, .ods)",
+                type=['csv', 'xlsx', 'ods'],
+                label_visibility="collapsed"
+            )
+            if uploaded_file:
                 try:
-                    force_fallback = (st.session_state.solver_mode == "Solo Heurística Rápida")
-                    resultados = run_optimization(
-                        paradas_df=st.session_state.paradas_df,
-                        vehiculos_df=st.session_state.vehiculos_df,
-                        costo_km=st.session_state.costo_km,
-                        velocidad_kmh=st.session_state.velocidad_kmh,
-                        random_seed=st.session_state.random_seed,
-                        force_fallback=force_fallback
-                    )
-                    st.session_state.resultados = resultados
-                    st.success("¡Optimización completada!")
-                except Exception as e:
-                    st.error(f"Ocurrió un error crítico durante la optimización: {e}")
-                    logger.error(f"Fallo en run_optimization: {e}", exc_info=False)
+                    paradas_df = safe_read_table(uploaded_file)
+                    st.session_state.paradas_df = paradas_df
                     st.session_state.resultados = None
+                    st.success(f"Archivo '{uploaded_file.name}' cargado.")
+                except Exception as e:
+                    st.error(f"Error al procesar: {e}")
+                    st.session_state.paradas_df = None
+
+        with st.container(border=True):
+            st.markdown("##### 2. Definir Flota")
+            num_vehiculos = st.slider("Número de Vehículos", 1, 20, 3, key="num_vehiculos")
+            capacidad_general = st.number_input("Capacidad por Vehículo", min_value=1, value=50, key="cap_vehiculos")
+            
+            vehiculos_list = [{'id': f'Vehículo {i+1}', 'capacidad': capacidad_general} for i in range(num_vehiculos)]
+            st.session_state.vehiculos_df = pd.DataFrame(vehiculos_list)
+
+        with st.container(border=True):
+            st.markdown("##### 3. Parámetros de Simulación")
+            col_costo, col_vel = st.columns(2)
+            with col_costo:
+                st.number_input("Costo por KM", value=0.5, format="%.2f", key="costo_km")
+            with col_vel:
+                st.number_input("Velocidad (km/h)", value=40.0, format="%.1f", key="velocidad_kmh")
+        
+        st.markdown("---")
+        if st.button("🚀 Optimizar Rutas", use_container_width=True, type="primary"):
+            if st.session_state.paradas_df is not None and not st.session_state.paradas_df.empty:
+                with st.spinner("Calculando las mejores rutas..."):
+                    try:
+                        # La semilla aleatoria ahora es fija para consistencia, pero oculta al usuario
+                        resultados = run_optimization(
+                            paradas_df=st.session_state.paradas_df,
+                            vehiculos_df=st.session_state.vehiculos_df,
+                            costo_km=st.session_state.costo_km,
+                            velocidad_kmh=st.session_state.velocidad_kmh,
+                            random_seed=42, # Semilla fija
+                            force_fallback=False
+                        )
+                        st.session_state.resultados = resultados
+                        st.success("¡Optimización completada!")
+                        st.toast("Resultados listos en la pestaña 'Resultados'.", icon="🎉")
+                    except Exception as e:
+                        st.error(f"Error en la optimización: {e}")
+                        st.session_state.resultados = None
+            else:
+                st.warning("Por favor, carga un archivo de paradas primero.")
+
+    # Pestaña de Resultados
+    with tab_results:
+        if st.session_state.resultados:
+            render_results_section(st.session_state.resultados, st.session_state.paradas_df)
         else:
-            st.warning("Por favor, carga los datos de las paradas antes de optimizar.")
+            st.info("Aún no se han generado resultados. Ejecuta la optimización en la pestaña 'Configuración'.")
 
-# --- PANTALLA PRINCIPAL ---
-st.header("Visualización de Rutas y Resultados")
+    # Pestaña "Acerca de"
+    with tab_about:
+        st.markdown("##### Autor")
+        st.write("Este software fue desarrollado por **GIUSEPPESAN21**.")
+        st.markdown("---")
+        st.markdown("##### Contacto")
+        st.write("📧 Para consultas o soporte, por favor contactar a:")
+        st.code("joseph.sanchez@uniminuto.edu.co")
+        st.write("🔗 [Visita mi Perfil de GitHub](https://github.com/GIUSEPPESAN21)")
 
-if st.session_state.resultados:
-    render_metrics_and_tables(st.session_state.resultados, st.session_state.paradas_df)
-else:
-    st.subheader("🗺️ Mapa de Paradas")
+
+# --- Columna 2: Mapa (Siempre Visible) ---
+with col2:
+    st.subheader("Mapa de Operaciones")
     if st.session_state.paradas_df is not None:
-        render_map(st.session_state.paradas_df, None)
+        render_map(st.session_state.paradas_df, st.session_state.resultados)
     else:
-        st.info("Bienvenido. Comienza cargando un archivo de paradas desde el panel de la izquierda.")
-
-# Panel de Logs al final de la página
-display_logs()
+        # Mapa de bienvenida si no hay datos
+        st.image("https://i.imgur.com/3o5s48j.png", caption="Carga un archivo para visualizar las paradas en el mapa.")
