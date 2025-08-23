@@ -2,7 +2,41 @@ import streamlit as st
 import pandas as pd
 import folium
 from streamlit_folium import st_folium
-import json
+from io import BytesIO
+from openpyxl import Workbook
+from openpyxl.utils.dataframe import dataframe_to_rows
+from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+
+def to_excel(df_dict):
+    """Exporta un diccionario de DataFrames a un archivo Excel en memoria con estilos."""
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        for sheet_name, df in df_dict.items():
+            df.to_excel(writer, sheet_name=sheet_name, index=False)
+        
+        # Aplicar estilos al libro de trabajo
+        workbook = writer.book
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid")
+        center_alignment = Alignment(horizontal='center', vertical='center')
+        thin_border = Border(left=Side(style='thin'), 
+                             right=Side(style='thin'), 
+                             top=Side(style='thin'), 
+                             bottom=Side(style='thin'))
+
+        for sheet_name in workbook.sheetnames:
+            worksheet = workbook[sheet_name]
+            for cell in worksheet[1]: # Primera fila (headers)
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = center_alignment
+                cell.border = thin_border
+            for row in worksheet.iter_rows(min_row=2):
+                for cell in row:
+                    cell.border = thin_border
+
+    output.seek(0)
+    return output
 
 def render_map(paradas_df, resultados):
     """Renderiza un mapa más atractivo con íconos y tooltips."""
@@ -81,9 +115,27 @@ def render_results_section(resultados, paradas_df):
     )
 
     st.markdown("---")
-    st.subheader("Detalle de Rutas")
+    st.subheader("Descargar Informe Detallado")
+    
+    # Preparar datos para el informe
     paradas_dict = {p['id']: p for _, p in paradas_df.iterrows()}
+    informe_sheets = {"Resumen": df_display}
+    
     for _, ruta in resumen_df.iterrows():
-        with st.expander(f"Ver detalle para **{ruta['vehiculo_id']}**"):
-            ruta_df = pd.DataFrame([paradas_dict[pid] for pid in ruta['secuencia_paradas_ids']])
-            st.dataframe(ruta_df[['id', 'demanda']], hide_index=True, use_container_width=True)
+        sheet_name = f"Ruta {ruta['vehiculo_id']}"
+        # Asegurarse de que el nombre de la hoja no sea demasiado largo
+        if len(sheet_name) > 31:
+            sheet_name = sheet_name[:31]
+        
+        ruta_df = pd.DataFrame([paradas_dict[pid] for pid in ruta['secuencia_paradas_ids']])
+        informe_sheets[sheet_name] = ruta_df[['id', 'lat', 'lon', 'demanda']]
+
+    excel_data = to_excel(informe_sheets)
+    
+    st.download_button(
+        label="📥 Descargar Informe (Excel)",
+        data=excel_data,
+        file_name="informe_de_rutas.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True
+    )
