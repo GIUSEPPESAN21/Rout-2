@@ -41,18 +41,15 @@ def safe_read_table(_uploaded_file):
     df.rename(columns=column_map, inplace=True)
 
     # --- 3. Validar Columnas Esenciales (sin 'is_depot') ---
-    # La columna 'is_depot' ya no es necesaria aquí.
     required_final_cols = ['id', 'lat', 'lon', 'demanda']
     missing_cols = [col for col in required_final_cols if col not in df.columns]
     if missing_cols:
         raise ValueError(f"Faltan columnas esenciales en el archivo: {', '.join(missing_cols)}")
 
-    # Asegurarse de que 'is_depot' no cause problemas si viene en el archivo
     if 'is_depot' in df.columns:
         st.warning("La columna 'is_depot' en el archivo será ignorada. El depósito se define en el mapa.")
         df.drop(columns=['is_depot'], inplace=True)
     
-    # Se añade la columna 'is_depot' como False para todas las filas (clientes)
     df['is_depot'] = False
 
     # --- 4. Validar Tipos de Datos (sin cambios en esta parte) ---
@@ -63,6 +60,6 @@ def safe_read_table(_uploaded_file):
     except Exception as e:
         raise TypeError(f"Error en los tipos de datos. 'lat', 'lon' y 'demanda' deben ser números. Error: {e}")
 
-    # La validación de que haya un solo depósito se elimina, ya que se gestiona en la UI.
-        
-    return df
+    # La validación del depósito se elimina de aquí.
+    
+    return df # <--- ESTA LÍNEA ESTABA INDENTADA INCORRECTAMENTE
