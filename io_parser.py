@@ -4,21 +4,20 @@ from io import BytesIO
 
 def safe_read_table(_uploaded_file):
     """
-    Lee un archivo de forma inteligente, detectando separador, mapeando columnas
-    y generando campos necesarios como 'is_depot'.
+    Lee un archivo de forma inteligente, detectando separador y mapeando columnas.
+    MODIFICADO: Ya no requiere ni genera la columna 'is_depot'.
+    El depósito se añade manualmente en la app principal.
     """
     file_content = BytesIO(_uploaded_file.getvalue())
     file_name = _uploaded_file.name.lower()
     df = None
 
-    # --- 1. Leer el archivo de forma robusta ---
+    # --- 1. Leer el archivo de forma robusta (sin cambios) ---
     try:
         if file_name.endswith('.csv'):
-            # Primero intenta detectar el separador automáticamente
             try:
                 df = pd.read_csv(file_content, sep=None, engine='python', encoding='utf-8')
             except Exception:
-                # Si falla, intenta explícitamente con punto y coma y encoding latin-1
                 file_content.seek(0)
                 df = pd.read_csv(file_content, sep=';', engine='python', encoding='latin-1')
         elif file_name.endswith(('.xlsx', '.xls')):
@@ -33,40 +32,37 @@ def safe_read_table(_uploaded_file):
     if df is None or df.empty:
         raise ValueError("El archivo está vacío o no se pudo leer.")
 
-    # --- 2. Normalizar y Mapear Columnas ---
+    # --- 2. Normalizar y Mapear Columnas (sin cambios) ---
     df.columns = [str(col).lower().strip().replace(' ', '_') for col in df.columns]
-
     column_map = {
         "pasajeros": "demanda",
-        "nombre": "id" # Usaremos el nombre como ID si no existe la columna 'id'
+        "nombre": "id"
     }
     df.rename(columns=column_map, inplace=True)
 
-    # --- 3. Validar y Generar Columnas Faltantes ---
-    
-    # Generar 'is_depot' si no existe, asumiendo que la primera fila es el depósito
-    if 'is_depot' not in df.columns:
-        st.warning("No se encontró la columna 'is_depot'. Se asumirá que la primera fila es el depósito.")
-        df['is_depot'] = False
-        if not df.empty:
-            df.loc[0, 'is_depot'] = True
-
-    # Validar que las columnas esenciales existan después del mapeo
-    required_final_cols = ['id', 'lat', 'lon', 'demanda', 'is_depot']
+    # --- 3. Validar Columnas Esenciales (sin 'is_depot') ---
+    # La columna 'is_depot' ya no es necesaria aquí.
+    required_final_cols = ['id', 'lat', 'lon', 'demanda']
     missing_cols = [col for col in required_final_cols if col not in df.columns]
     if missing_cols:
         raise ValueError(f"Faltan columnas esenciales en el archivo: {', '.join(missing_cols)}")
 
-    # --- 4. Validar Tipos de Datos ---
+    # Asegurarse de que 'is_depot' no cause problemas si viene en el archivo
+    if 'is_depot' in df.columns:
+        st.warning("La columna 'is_depot' en el archivo será ignorada. El depósito se define en el mapa.")
+        df.drop(columns=['is_depot'], inplace=True)
+    
+    # Se añade la columna 'is_depot' como False para todas las filas (clientes)
+    df['is_depot'] = False
+
+    # --- 4. Validar Tipos de Datos (sin cambios en esta parte) ---
     try:
         df['lat'] = pd.to_numeric(df['lat'])
         df['lon'] = pd.to_numeric(df['lon'])
         df['demanda'] = pd.to_numeric(df['demanda'])
-        df['is_depot'] = df['is_depot'].astype(bool)
     except Exception as e:
         raise TypeError(f"Error en los tipos de datos. 'lat', 'lon' y 'demanda' deben ser números. Error: {e}")
 
-    if df['is_depot'].sum() != 1:
-        raise ValueError(f"Debe haber exactamente un depósito. Se encontraron {df['is_depot'].sum()}.")
+    # La validación de que haya un solo depósito se elimina, ya que se gestiona en la UI.
         
     return df
