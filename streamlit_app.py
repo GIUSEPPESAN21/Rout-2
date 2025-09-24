@@ -3,7 +3,7 @@ import pandas as pd
 from utils import init_session_state, get_logger
 from io_parser import safe_read_table
 from solver import run_optimization
-from visualization import render_map, render_results_section # Se mantiene tu visualizador
+from visualization import render_map, render_results_section
 import folium
 from streamlit_folium import st_folium
 
@@ -34,7 +34,16 @@ st.markdown("""
         margin: 0;
         font-weight: 600;
     }
-    /* ... (resto de tu CSS se mantiene) ... */
+    .header p {
+        font-size: 1.1rem;
+        color: #555;
+        margin: 0;
+        margin-left: 1rem;
+    }
+    .header .icon {
+        font-size: 2.5rem;
+        margin-right: 1rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -42,13 +51,12 @@ st.markdown("""
 init_session_state()
 logger = get_logger()
 
-# Novedad: Inicializar coordenadas del depósito en el session_state
 if 'depot_lat' not in st.session_state:
-    st.session_state.depot_lat = 4.4389   # Coordenadas por defecto (ej. Tuluá, Valle)
+    st.session_state.depot_lat = 4.4389
 if 'depot_lon' not in st.session_state:
     st.session_state.depot_lon = -76.1951
 
-# --- Header (se mantiene el tuyo) ---
+# --- Header ---
 st.markdown(
     """
     <div class="header">
@@ -62,12 +70,12 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- Layout Principal (Ahora con pestañas como en ACO) ---
+# --- Layout Principal con Pestañas ---
 tab_config, tab_results, tab_about = st.tabs(["⚙️ Configuración", "📊 Resultados", "👤 Acerca de"])
 
 # --- Pestaña de Configuración ---
 with tab_config:
-    col1, col2 = st.columns([0.6, 0.4]) # Dividir en dos columnas
+    col1, col2 = st.columns([0.6, 0.4])
 
     with col1:
         st.subheader("1. Cargar Datos de Paradas (Clientes)")
@@ -77,10 +85,9 @@ with tab_config:
         )
         if uploaded_file:
             try:
-                # El parser ahora no exigirá un depósito en el archivo
                 paradas_df = safe_read_table(uploaded_file)
                 st.session_state.paradas_df = paradas_df
-                st.session_state.resultados = None # Limpiar resultados antiguos
+                st.session_state.resultados = None
                 st.success(f"Archivo '{uploaded_file.name}' cargado con {len(paradas_df)} paradas.")
             except Exception as e:
                 st.error(f"Error al procesar: {e}")
@@ -89,29 +96,26 @@ with tab_config:
         st.subheader("2. Definir Ubicación del Depósito")
         st.info("Haz clic en el mapa para establecer el punto de partida y regreso.")
 
-        # Mapa para seleccionar el depósito (lógica de ACO)
         map_center = [st.session_state.depot_lat, st.session_state.depot_lon]
-        if st.session_state.paradas_df is not None:
+        if st.session_state.paradas_df is not None and not st.session_state.paradas_df.empty:
             map_center = [st.session_state.paradas_df['lat'].mean(), st.session_state.paradas_df['lon'].mean()]
 
         m_config = folium.Map(location=map_center, zoom_start=12, tiles="cartodbpositron")
-        # Marcador del depósito actual
         folium.Marker(
             [st.session_state.depot_lat, st.session_state.depot_lon],
             popup="Depósito Actual", tooltip="Depósito",
             icon=folium.Icon(color="red", icon="warehouse", prefix='fa')
         ).add_to(m_config)
 
-        # Marcadores de las paradas cargadas
         if st.session_state.paradas_df is not None:
             for _, row in st.session_state.paradas_df.iterrows():
-                folium.Marker([row['lat'], row['lon']], tooltip=row['id']).add_to(m_config)
+                folium.Marker([row['lat'], row['lon']], tooltip=row.get('id', 'Parada')).add_to(m_config)
 
-        map_data = st_folium(m_config, width=700, height=400, key="depot_map")
+        map_data = st_folium(m_config, width='100%', height=400, key="depot_map")
         if map_data and map_data["last_clicked"]:
             st.session_state.depot_lat = map_data["last_clicked"]["lat"]
             st.session_state.depot_lon = map_data["last_clicked"]["lng"]
-            st.rerun() # Recargar para actualizar la coordenada mostrada
+            st.rerun()
 
     with col2:
         st.subheader("3. Parámetros de la Flota")
@@ -134,46 +138,41 @@ with tab_config:
         else:
             with st.spinner("Calculando las mejores rutas..."):
                 try:
-                    # --- Lógica de Integración Clave ---
-                    # 1. Crear el DataFrame del depósito a partir de la selección manual
                     depot_df = pd.DataFrame([{
-                        'id': 'depot',
-                        'lat': st.session_state.depot_lat,
-                        'lon': st.session_state.depot_lon,
-                        'demanda': 0,
-                        'is_depot': True
+                        'id': 'depot', 'lat': st.session_state.depot_lat, 'lon': st.session_state.depot_lon,
+                        'demanda': 0, 'is_depot': True
                     }])
-                    # 2. Combinar el depósito con las paradas del cliente
                     full_paradas_df = pd.concat([depot_df, st.session_state.paradas_df], ignore_index=True)
 
-                    # 3. Ejecutar la optimización con el DataFrame completo
                     resultados = run_optimization(
                         paradas_df=full_paradas_df,
                         vehiculos_df=st.session_state.vehiculos_df,
                         costo_km=st.session_state.costo_km,
                         velocidad_kmh=st.session_state.velocidad_kmh,
-                        random_seed=42,
-                        force_fallback=False
+                        random_seed=42
                     )
                     st.session_state.resultados = resultados
-                    # Guardamos el DF completo para usarlo en la visualización
                     st.session_state.full_paradas_df = full_paradas_df
                     st.success("¡Optimización completada!")
                     st.toast("Resultados listos en la pestaña 'Resultados'.", icon="🎉")
                 except Exception as e:
                     st.error(f"Error en la optimización: {e}")
+                    logger.error(f"Error detallado de optimización: {e}", exc_info=True)
                     st.session_state.resultados = None
 
 # --- Pestaña de Resultados ---
 with tab_results:
-    if st.session_state.resultados:
-        st.header("Análisis de la Solución Optimizada")
-        # Visualización del Mapa
-        st.subheader("🗺️ Visualización de Rutas Optimizadas")
-        render_map(st.session_state.full_paradas_df, st.session_state.resultados)
-        
-        # Nueva sección de resultados (inspirada en ACO)
-        render_results_section(st.session_state.resultados, st.session_state.full_paradas_df)
+    st.header("Análisis de la Solución Optimizada")
+    # --- CORRECCIÓN CLAVE ---
+    # Se cambió `if st.session_state.resultados:` por `if st.session_state.resultados is not None:`
+    # Esto asegura que la pestaña se actualice incluso si el resultado es una lista vacía [].
+    if st.session_state.resultados is not None:
+        if st.session_state.full_paradas_df is not None:
+            st.subheader("🗺️ Visualización de Rutas Optimizadas")
+            render_map(st.session_state.full_paradas_df, st.session_state.resultados)
+            render_results_section(st.session_state.resultados, st.session_state.full_paradas_df)
+        else:
+            st.warning("No se encontraron datos de paradas para visualizar.")
     else:
         st.info("Completa y ejecuta la configuración para ver los resultados.")
 
@@ -181,4 +180,9 @@ with tab_results:
 with tab_about:
     st.markdown("##### Autor")
     st.write("**Joseph Javier Sánchez Acuña**")
-    # ... (resto de tu información de contacto) ...
+    st.write("_Ingeniero Industrial, Experto en Inteligencia Artificial y Desarrollo de Software._")
+    st.markdown("---")
+    st.markdown("##### Contacto")
+    st.write("🔗 [Perfil de LinkedIn](https://www.linkedin.com/in/joseph-javier-sánchez-acuña-150410275)")
+    st.write("📂 [Repositorio en GitHub](https://github.com/GIUSEPPESAN21)")
+    st.write("📧 joseph.sanchez@uniminuto.edu.co")
