@@ -6,3 +6,9 @@ streamlit-folium
 python-tsp
 openpyxl
 odfpy
+ortools
+streamlit
+pandas
+pydeck
+numpy
+haversine
