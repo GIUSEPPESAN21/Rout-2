@@ -1,14 +1,5 @@
 streamlit
 pandas
-numpy>=2.0.0
-folium
-streamlit-folium
-python-tsp
 openpyxl
-odfpy
 ortools
-streamlit
-pandas
 pydeck
-numpy
-haversine
