@@ -60,6 +60,9 @@ def safe_read_table(_uploaded_file):
     except Exception as e:
         raise TypeError(f"Error en los tipos de datos. 'lat', 'lon' y 'demanda' deben ser números. Error: {e}")
 
+    # FIX APLICADO: Elimina cualquier fila donde 'lat', 'lon' o 'demanda' sean NaN
+    df.dropna(subset=['lat', 'lon', 'demanda'], inplace=True)
+
     # La validación del depósito se elimina de aquí.
     
-    return df # <--- ESTA LÍNEA ESTABA INDENTADA INCORRECTAMENTE
+    return df
