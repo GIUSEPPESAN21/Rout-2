@@ -1,65 +1,59 @@
 import pandas as pd
 import streamlit as st
-from io import BytesIO
+from io import StringIO
 
-def safe_read_table(_uploaded_file):
+def parse_input_file(uploaded_file):
     """
-    Lee un archivo de forma inteligente, detectando separador y mapeando columnas.
-    MODIFICADO: Ya no requiere ni genera la columna 'is_depot'.
-    El depósito se añade manualmente en la app principal.
+    Analiza un archivo CSV cargado, lo limpia y lo convierte en un DataFrame de Pandas.
+    Esta versión está diseñada para manejar delimitadores de punto y coma,
+    comas como separadores decimales y espacios extra en los datos numéricos.
     """
-    file_content = BytesIO(_uploaded_file.getvalue())
-    file_name = _uploaded_file.name.lower()
-    df = None
+    if uploaded_file is None:
+        return None
 
-    # --- 1. Leer el archivo de forma robusta (sin cambios) ---
     try:
-        if file_name.endswith('.csv'):
-            try:
-                df = pd.read_csv(file_content, sep=None, engine='python', encoding='utf-8')
-            except Exception:
-                file_content.seek(0)
-                df = pd.read_csv(file_content, sep=';', engine='python', encoding='latin-1')
-        elif file_name.endswith(('.xlsx', '.xls')):
-            df = pd.read_excel(file_content, engine='openpyxl')
-        elif file_name.endswith('.ods'):
-            df = pd.read_excel(file_content, engine='odf')
-        else:
-            raise ValueError("Formato de archivo no soportado.")
+        # Decodificar el archivo cargado a una cadena de texto
+        string_data = uploaded_file.getvalue().decode('utf-8')
+        
+        # Leer los datos usando el punto y coma como delimitador
+        df = pd.read_csv(StringIO(string_data), delimiter=';')
+
+        # Renombrar columnas para estandarizar (de 'pasajeros' a 'demanda')
+        if 'pasajeros' in df.columns:
+            df.rename(columns={'pasajeros': 'demanda'}, inplace=True)
+
+        # Validar que las columnas necesarias existan
+        required_cols = ['lat', 'lon', 'demanda']
+        for col in required_cols:
+            if col not in df.columns:
+                raise ValueError(f"Error: La columna requerida '{col}' no se encuentra en el archivo.")
+
+        # --- INICIO DE LA CORRECCIÓN ---
+        # Limpiar y convertir las columnas numéricas
+        for col in required_cols:
+            # 1. Asegurarse de que la columna sea de tipo string para poder limpiarla
+            df[col] = df[col].astype(str)
+            # 2. Reemplazar la coma decimal por un punto
+            df[col] = df[col].str.replace(',', '.', regex=False)
+            # 3. Eliminar espacios en blanco al inicio y al final (incluyendo espacios de no separación)
+            df[col] = df[col].str.strip()
+            # 4. Convertir a tipo numérico. Si algo falla, se convierte en NaN (Not a Number)
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+        # --- FIN DE LA CORRECCIÓN ---
+
+        # Verificar si alguna conversión falló y ahora hay valores nulos
+        if df[required_cols].isnull().values.any():
+            st.warning("Se encontraron valores no numéricos en las columnas 'lat', 'lon' o 'demanda' después de la limpieza. Esas filas serán ignoradas.")
+            df.dropna(subset=required_cols, inplace=True)
+
+        # Asegurarse de que los tipos de datos finales sean correctos
+        df = df.astype({'lat': float, 'lon': float, 'demanda': float})
+
+        return df
+
+    except ValueError as ve:
+        # Propagar errores de validación para que la app principal los muestre
+        raise ve
     except Exception as e:
-        raise ValueError(f"No se pudo leer el archivo. Error: {e}")
-
-    if df is None or df.empty:
-        raise ValueError("El archivo está vacío o no se pudo leer.")
-
-    # --- 2. Normalizar y Mapear Columnas (sin cambios) ---
-    df.columns = [str(col).lower().strip().replace(' ', '_') for col in df.columns]
-    column_map = {
-        "pasajeros": "demanda",
-        "nombre": "id"
-    }
-    df.rename(columns=column_map, inplace=True)
-
-    # --- 3. Validar Columnas Esenciales (sin 'is_depot') ---
-    required_final_cols = ['id', 'lat', 'lon', 'demanda']
-    missing_cols = [col for col in required_final_cols if col not in df.columns]
-    if missing_cols:
-        raise ValueError(f"Faltan columnas esenciales en el archivo: {', '.join(missing_cols)}")
-
-    if 'is_depot' in df.columns:
-        st.warning("La columna 'is_depot' en el archivo será ignorada. El depósito se define en el mapa.")
-        df.drop(columns=['is_depot'], inplace=True)
-    
-    df['is_depot'] = False
-
-    # --- 4. Validar Tipos de Datos (sin cambios en esta parte) ---
-    try:
-        df['lat'] = pd.to_numeric(df['lat'])
-        df['lon'] = pd.to_numeric(df['lon'])
-        df['demanda'] = pd.to_numeric(df['demanda'])
-    except Exception as e:
-        raise TypeError(f"Error en los tipos de datos. 'lat', 'lon' y 'demanda' deben ser números. Error: {e}")
-
-    # La validación del depósito se elimina de aquí.
-    
-    return df # <--- ESTA LÍNEA ESTABA INDENTADA INCORRECTAMENTE
+        # Capturar otros posibles errores de lectura o procesamiento
+        raise RuntimeError(f"No se pudo procesar el archivo. Verifique que sea un CSV válido con delimitador ';'. Error original: {e}")
