@@ -1,5 +1,12 @@
 import streamlit as st
 import pandas as pd
+import sys
+import os
+
+# Añadir el directorio actual al path de Python para asegurar que los módulos locales 
+# (solver, io_parser, etc.) se encuentren durante la importación.
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 from io_parser import parse_input_file
 from solver import solve_vrp
 from visualization import get_map
