@@ -28,18 +28,12 @@ def parse_input_file(uploaded_file):
             if col not in df.columns:
                 raise ValueError(f"Error: La columna requerida '{col}' no se encuentra en el archivo.")
 
-        # --- INICIO DE LA CORRECCIÓN ---
         # Limpiar y convertir las columnas numéricas
         for col in required_cols:
-            # 1. Asegurarse de que la columna sea de tipo string para poder limpiarla
             df[col] = df[col].astype(str)
-            # 2. Reemplazar la coma decimal por un punto
             df[col] = df[col].str.replace(',', '.', regex=False)
-            # 3. Eliminar espacios en blanco al inicio y al final (incluyendo espacios de no separación)
             df[col] = df[col].str.strip()
-            # 4. Convertir a tipo numérico. Si algo falla, se convierte en NaN (Not a Number)
             df[col] = pd.to_numeric(df[col], errors='coerce')
-        # --- FIN DE LA CORRECCIÓN ---
 
         # Verificar si alguna conversión falló y ahora hay valores nulos
         if df[required_cols].isnull().values.any():
@@ -57,3 +51,4 @@ def parse_input_file(uploaded_file):
     except Exception as e:
         # Capturar otros posibles errores de lectura o procesamiento
         raise RuntimeError(f"No se pudo procesar el archivo. Verifique que sea un CSV válido con delimitador ';'. Error original: {e}")
+
